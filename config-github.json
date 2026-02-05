@@ -1,0 +1,14 @@
+{
+  "name": "Asset Information Display",
+  "supportEmail": "your-email@example.com",
+  "version": "1.0.0",
+  "items": [
+    {
+      "page": "map",
+      "mapScript": {
+        "url": "https://YOUR-USERNAME.github.io/YOUR-REPOSITORY-NAME/assetInfo.html"
+      }
+    }
+  ],
+  "isSigned": false
+}

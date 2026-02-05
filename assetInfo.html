@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Information Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        
+        #asset-info-panel {
+            background-color: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+            max-width: 400px;
+        }
+        
+        .info-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #0073e6;
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 140px;
+            margin-right: 12px;
+        }
+        
+        .info-value {
+            color: #333;
+            word-wrap: break-word;
+            flex: 1;
+        }
+        
+        .no-data {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="asset-info-panel">
+        <div class="loading">Select a vehicle to view information...</div>
+    </div>
+
+    <script>
+        // Global variables
+        let api;
+        let state;
+
+        /**
+         * Initialize the add-in
+         */
+        function initialize(freshApi, freshState, initializeCallback) {
+            api = freshApi;
+            state = freshState;
+            
+            // Set up event listener for device selection
+            state.device.attach(function(device) {
+                if (device && device.id) {
+                    displayAssetInfo(device);
+                } else {
+                    showNoSelection();
+                }
+            });
+            
+            // Check if a device is already selected
+            if (state.device && state.device.id) {
+                displayAssetInfo(state.device);
+            }
+            
+            initializeCallback();
+        }
+
+        /**
+         * Display "no selection" message
+         */
+        function showNoSelection() {
+            const panel = document.getElementById('asset-info-panel');
+            panel.innerHTML = '<div class="loading">Select a vehicle to view information...</div>';
+        }
+
+        /**
+         * Display asset information for selected device
+         */
+        async function displayAssetInfo(device) {
+            const panel = document.getElementById('asset-info-panel');
+            panel.innerHTML = '<div class="loading">Loading asset information...</div>';
+            
+            try {
+                // Get full device details
+                const devices = await api.call('Get', {
+                    typeName: 'Device',
+                    search: {
+                        id: device.id
+                    }
+                });
+                
+                if (devices && devices.length > 0) {
+                    const fullDevice = devices[0];
+                    renderAssetInfo(fullDevice);
+                } else {
+                    panel.innerHTML = '<div class="no-data">No device information found.</div>';
+                }
+            } catch (error) {
+                console.error('Error fetching device information:', error);
+                panel.innerHTML = '<div class="no-data">Error loading device information.</div>';
+            }
+        }
+
+        /**
+         * Render the asset information panel
+         */
+        function renderAssetInfo(device) {
+            const panel = document.getElementById('asset-info-panel');
+            
+            // Extract device information
+            const deviceName = device.name || 'N/A';
+            const licensePlate = device.licensePlate || 'N/A';
+            const licenseState = device.licenseState || 'N/A';
+            const vin = device.vehicleIdentificationNumber || 'N/A';
+            
+            // Extract device serial number
+            const serialNumber = device.serialNumber || 'N/A';
+            
+            // Extract vehicle details (make, model, year)
+            const make = device.autoGroups && device.autoGroups.make 
+                ? device.autoGroups.make 
+                : (device.make || 'N/A');
+            const model = device.autoGroups && device.autoGroups.model 
+                ? device.autoGroups.model 
+                : (device.model || 'N/A');
+            const year = device.autoGroups && device.autoGroups.year 
+                ? device.autoGroups.year 
+                : (device.modelYear || device.year || 'N/A');
+            
+            // Build the HTML
+            let html = `
+                <div class="info-header">${deviceName}</div>
+                <div class="info-row">
+                    <div class="info-label">License Plate:</div>
+                    <div class="info-value ${licensePlate === 'N/A' ? 'no-data' : ''}">${licensePlate}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">State/Province:</div>
+                    <div class="info-value ${licenseState === 'N/A' ? 'no-data' : ''}">${licenseState}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">VIN:</div>
+                    <div class="info-value ${vin === 'N/A' ? 'no-data' : ''}">${vin}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Make:</div>
+                    <div class="info-value ${make === 'N/A' ? 'no-data' : ''}">${make}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Model:</div>
+                    <div class="info-value ${model === 'N/A' ? 'no-data' : ''}">${model}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Year:</div>
+                    <div class="info-value ${year === 'N/A' ? 'no-data' : ''}">${year}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Serial Number:</div>
+                    <div class="info-value ${serialNumber === 'N/A' ? 'no-data' : ''}">${serialNumber}</div>
+                </div>
+            `;
+            
+            panel.innerHTML = html;
+        }
+
+        /**
+         * Focus handler (optional)
+         */
+        function focus(freshApi, freshState) {
+            // Called when add-in gains focus
+            api = freshApi;
+            state = freshState;
+        }
+
+        /**
+         * Blur handler (optional)
+         */
+        function blur(freshApi, freshState) {
+            // Called when add-in loses focus
+        }
+    </script>
+</body>
+</html>
