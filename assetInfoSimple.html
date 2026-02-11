@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Information Display</title>
+    <style>
+        /* RESET: Use standard styling for a sidebar panel */
+        body {
+            font-family: 'Roboto', Arial, sans-serif; /* Geotab standard font */
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff; /* Solid white background */
+            color: #333;
+            height: 100vh;
+            overflow-y: auto; /* Allow scrolling if content is long */
+        }
+        
+        #asset-info-panel {
+            /* Remove absolute positioning. Flow naturally in the sidebar. */
+            padding: 16px;
+            width: 100%; 
+            box-sizing: border-box;
+            display: block !important; /* Force it to always be visible */
+        }
+        
+        .info-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* We don't need a close button if it's a sidebar tab */
+        .close-btn {
+            display: none; 
+        }
+        
+        .info-row {
+            display: flex;
+            flex-direction: column; /* Stack label and value for narrow sidebars */
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9fafb;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .info-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #666;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-value {
+            font-size: 14px;
+            color: #333;
+            word-wrap: break-word;
+            font-weight: 500;
+        }
+        
+        .no-data {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .status-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .icon-placeholder {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="asset-info-panel">
+        <div class="status-message">
+            <span class="icon-placeholder">📍</span>
+            Select a vehicle on the map to view details.
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let api;
+        let state;
+
+        /**
+         * Initialize the add-in
+         */
+        function initialize(freshApi, freshState, initializeCallback) {
+            api = freshApi;
+            state = freshState;
+            
+            // 1. Subscribe to device selection (clicks on the map)
+            state.device.attach(function(device) {
+                if (device && device.id) {
+                    displayAssetInfo(device);
+                } else {
+                    showNoSelection();
+                }
+            });
+            
+            // 2. Check if a device is ALREADY selected when we load
+            if (state.device && state.device.id) {
+                // If loaded via URL param or previous state
+                const currentDevice = state.device.get ? state.device.get() : state.device;
+                // If currentDevice is just an ID string or object, handle it
+                if(currentDevice && (currentDevice.id || typeof currentDevice === 'string')) {
+                     // We might need to fetch the full object if we only have ID
+                     let deviceObj = currentDevice.id ? currentDevice : { id: currentDevice };
+                     displayAssetInfo(deviceObj);
+                }
+            }
+            
+            initializeCallback();
+        }
+
+        /**
+         * Show default message
+         */
+        function showNoSelection() {
+            const panel = document.getElementById('asset-info-panel');
+            panel.innerHTML = `
+                <div class="status-message">
+                    <span class="icon-placeholder">📍</span>
+                    Select a vehicle on the map to view details.
+                </div>`;
+        }
+
+        /**
+         * Display asset information for selected device
+         */
+        async function displayAssetInfo(device) {
+            const panel = document.getElementById('asset-info-panel');
+            
+            // Show loading state
+            panel.innerHTML = `
+                <div class="status-message">
+                    Loading asset information...
+                </div>`;
+            
+            try {
+                // Determine ID (handle case where device is just an ID string or an object)
+                const deviceId = device.id || device;
+
+                // API Call to get full details
+                const devices = await api.call('Get', {
+                    typeName: 'Device',
+                    search: {
+                        id: deviceId
+                    }
+                });
+                
+                if (devices && devices.length > 0) {
+                    const fullDevice = devices[0];
+                    renderAssetInfo(fullDevice);
+                } else {
+                    panel.innerHTML = `<div class="status-message">Device info not found.</div>`;
+                }
+            } catch (error) {
+                console.error('Error fetching device information:', error);
+                panel.innerHTML = `<div class="status-message">Error loading data.</div>`;
+            }
+        }
+
+        /**
+         * Render the HTML
+         */
+        function renderAssetInfo(device) {
+            const panel = document.getElementById('asset-info-panel');
+            
+            // Safe extraction helper
+            const getVal = (val) => (val && val !== 'N/A' ? val : '<span class="no-data">--</span>');
+
+            const deviceName = device.name || 'Unknown Device';
+            const licensePlate = device.licensePlate;
+            const licenseState = device.licenseState;
+            const vin = device.vehicleIdentificationNumber;
+            const serialNumber = device.serialNumber;
+            
+            // Groups handling
+            const make = (device.autoGroups && device.autoGroups.make) ? device.autoGroups.make : device.make;
+            const model = (device.autoGroups && device.autoGroups.model) ? device.autoGroups.model : device.model;
+            const year = (device.autoGroups && device.autoGroups.year) ? device.autoGroups.year : (device.modelYear || device.year);
+            
+            let html = `
+                <div class="info-header">${deviceName}</div>
+                
+                <div class="info-row">
+                    <div class="info-label">License Plate</div>
+                    <div class="info-value">${getVal(licensePlate)}</div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-label">State/Province</div>
+                    <div class="info-value">${getVal(licenseState)}</div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-label">VIN</div>
+                    <div class="info-value">${getVal(vin)}</div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-label">Year Make Model</div>
+                    <div class="info-value">
+                        ${getVal(year)} ${getVal(make)} ${getVal(model)}
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <div class="info-label">Serial Number</div>
+                    <div class="info-value">${getVal(serialNumber)}</div>
+                </div>
+            `;
+            
+            panel.innerHTML = html;
+        }
+
+        function focus(freshApi, freshState) {
+            api = freshApi;
+            state = freshState;
+        }
+
+        function blur(freshApi, freshState) { }
+    </script>
+</body>
+</html>
