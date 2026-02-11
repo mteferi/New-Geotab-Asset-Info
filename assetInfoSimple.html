@@ -16,6 +16,7 @@
 
     <script>
         geotab.addin.assetInfoSimple = (elt, service) => {
+            console.log("****", elt, service);
             // code for Map Add-In
              return {
                 initialize(api, state, callback) {
@@ -23,6 +24,7 @@
                 },
                 focus(api, state) {
                 // User interface is available
+                    
                 },
                 blur(api, state) {
                 // Save any Add-In state
