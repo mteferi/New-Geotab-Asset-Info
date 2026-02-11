@@ -102,6 +102,7 @@
          * Initialize the add-in
          */
         geotab.addin.assetInfo = (elt, service) => {
+            console.log("****", elt, service);
             return {
                 initialize(freshApi, freshState, initializeCallback) {
                     api = freshApi;
