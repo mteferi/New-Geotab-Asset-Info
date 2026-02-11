@@ -101,32 +101,43 @@
         /**
          * Initialize the add-in
          */
-        function initialize(freshApi, freshState, initializeCallback) {
-            api = freshApi;
-            state = freshState;
-            
-            // 1. Subscribe to device selection (clicks on the map)
-            state.device.attach(function(device) {
-                if (device && device.id) {
-                    displayAssetInfo(device);
-                } else {
-                    showNoSelection();
+        geotab.addin.assetInfo = (elt, service) => {
+            return {
+                initialize(freshApi, freshState, initializeCallback) {
+                    api = freshApi;
+                    state = freshState;
+                    
+                    // 1. Subscribe to device selection (clicks on the map)
+                    state.device.attach(function(device) {
+                        if (device && device.id) {
+                            displayAssetInfo(device);
+                        } else {
+                            showNoSelection();
+                        }
+                    });
+                    
+                    // 2. Check if a device is ALREADY selected when we load
+                    if (state.device && state.device.id) {
+                        // If loaded via URL param or previous state
+                        const currentDevice = state.device.get ? state.device.get() : state.device;
+                        // If currentDevice is just an ID string or object, handle it
+                        if(currentDevice && (currentDevice.id || typeof currentDevice === 'string')) {
+                             // We might need to fetch the full object if we only have ID
+                             let deviceObj = currentDevice.id ? currentDevice : { id: currentDevice };
+                             displayAssetInfo(deviceObj);
+                        }
+                    }
+                    
+                    initializeCallback();
                 }
-            });
-            
-            // 2. Check if a device is ALREADY selected when we load
-            if (state.device && state.device.id) {
-                // If loaded via URL param or previous state
-                const currentDevice = state.device.get ? state.device.get() : state.device;
-                // If currentDevice is just an ID string or object, handle it
-                if(currentDevice && (currentDevice.id || typeof currentDevice === 'string')) {
-                     // We might need to fetch the full object if we only have ID
-                     let deviceObj = currentDevice.id ? currentDevice : { id: currentDevice };
-                     displayAssetInfo(deviceObj);
+
+                focus(freshApi, freshState) {
+                    api = freshApi;
+                    state = freshState;
                 }
-            }
-            
-            initializeCallback();
+        
+                blur(freshApi, freshState) { }
+            };
         }
 
         /**
@@ -230,13 +241,6 @@
             
             panel.innerHTML = html;
         }
-
-        function focus(freshApi, freshState) {
-            api = freshApi;
-            state = freshState;
-        }
-
-        function blur(freshApi, freshState) { }
     </script>
 </body>
 </html>
