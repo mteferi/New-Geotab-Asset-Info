@@ -5,84 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asset Information Display</title>
     <style>
-        /* CRITICAL FIX: 
-           We make the body transparent and disable pointer events so clicks 
-           pass through the empty space to the Geotab map below.
-        */
+        /* RESET: Use standard styling for a sidebar panel */
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif; /* Geotab standard font */
             margin: 0;
             padding: 0;
-            background-color: transparent; 
-            pointer-events: none; 
+            background-color: #ffffff; /* Solid white background */
+            color: #333;
+            height: 100vh;
+            overflow-y: auto; /* Allow scrolling if content is long */
         }
         
         #asset-info-panel {
-            /* Positioning Logic: Floats the panel over the map */
-            position: absolute;
-            top: 10px;    /* Adjust this to move it up/down */
-            right: 10px;  /* Adjust this to move it left/right */
-            z-index: 9999; /* High z-index ensures it sits ON TOP of the map */
-            
-            /* Visual Styling */
-            background-color: #ffffff;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            /* Remove absolute positioning. Flow naturally in the sidebar. */
             padding: 16px;
-            width: 320px; /* Fixed width prevents resizing issues */
-            
-            /* Enable clicks on the panel itself */
-            pointer-events: auto; 
-            
-            /* Hidden by default until an item is selected */
-            display: none; 
+            width: 100%; 
+            box-sizing: border-box;
+            display: block !important; /* Force it to always be visible */
         }
         
         .info-header {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
-            color: #333;
-            margin-bottom: 16px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #0073e6;
-            
-            /* Flexbox to align title and close button */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
         }
 
-        /* Close button styling */
+        /* We don't need a close button if it's a sidebar tab */
         .close-btn {
-            cursor: pointer;
-            font-size: 24px;
-            color: #999;
-            line-height: 1;
-        }
-        .close-btn:hover {
-            color: #333;
+            display: none; 
         }
         
         .info-row {
             display: flex;
-            margin-bottom: 12px;
-            padding: 8px;
-            background-color: #f8f9fa;
+            flex-direction: column; /* Stack label and value for narrow sidebars */
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9fafb;
             border-radius: 4px;
-            font-size: 13px; /* Slightly smaller text for better fit */
+            border: 1px solid #e0e0e0;
         }
         
         .info-label {
-            font-weight: 600;
-            color: #555;
-            min-width: 100px;
-            margin-right: 10px;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #666;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
         }
         
         .info-value {
+            font-size: 14px;
             color: #333;
             word-wrap: break-word;
-            flex: 1;
+            font-weight: 500;
         }
         
         .no-data {
@@ -90,16 +69,28 @@
             font-style: italic;
         }
         
-        .loading {
+        .status-message {
             text-align: center;
-            padding: 20px;
+            padding: 40px 20px;
             color: #666;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .icon-placeholder {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: block;
         }
     </style>
 </head>
 <body>
     <div id="asset-info-panel">
-        <div class="loading">Select a vehicle to view information...</div>
+        <div class="status-message">
+            <span class="icon-placeholder">📍</span>
+            Select a vehicle on the map to view details.
+        </div>
     </div>
 
     <script>
@@ -114,7 +105,7 @@
             api = freshApi;
             state = freshState;
             
-            // Set up event listener for device selection
+            // 1. Subscribe to device selection (clicks on the map)
             state.device.attach(function(device) {
                 if (device && device.id) {
                     displayAssetInfo(device);
@@ -123,22 +114,31 @@
                 }
             });
             
-            // Check if a device is already selected
+            // 2. Check if a device is ALREADY selected when we load
             if (state.device && state.device.id) {
-                displayAssetInfo(state.device);
-            } else {
-                showNoSelection();
+                // If loaded via URL param or previous state
+                const currentDevice = state.device.get ? state.device.get() : state.device;
+                // If currentDevice is just an ID string or object, handle it
+                if(currentDevice && (currentDevice.id || typeof currentDevice === 'string')) {
+                     // We might need to fetch the full object if we only have ID
+                     let deviceObj = currentDevice.id ? currentDevice : { id: currentDevice };
+                     displayAssetInfo(deviceObj);
+                }
             }
             
             initializeCallback();
         }
 
         /**
-         * Hides the panel when no vehicle is selected
+         * Show default message
          */
         function showNoSelection() {
             const panel = document.getElementById('asset-info-panel');
-            panel.style.display = 'none';
+            panel.innerHTML = `
+                <div class="status-message">
+                    <span class="icon-placeholder">📍</span>
+                    Select a vehicle on the map to view details.
+                </div>`;
         }
 
         /**
@@ -147,22 +147,21 @@
         async function displayAssetInfo(device) {
             const panel = document.getElementById('asset-info-panel');
             
-            // Show the panel and display loading state
-            panel.style.display = 'block';
+            // Show loading state
             panel.innerHTML = `
-                <div class="info-header">
-                    <span>Loading...</span>
-                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
-                </div>
-                <div class="loading">Fetching asset details...</div>
-            `;
+                <div class="status-message">
+                    Loading asset information...
+                </div>`;
             
             try {
-                // Get full device details
+                // Determine ID (handle case where device is just an ID string or an object)
+                const deviceId = device.id || device;
+
+                // API Call to get full details
                 const devices = await api.call('Get', {
                     typeName: 'Device',
                     search: {
-                        id: device.id
+                        id: deviceId
                     }
                 });
                 
@@ -170,107 +169,74 @@
                     const fullDevice = devices[0];
                     renderAssetInfo(fullDevice);
                 } else {
-                    renderError("No device information found.");
+                    panel.innerHTML = `<div class="status-message">Device info not found.</div>`;
                 }
             } catch (error) {
                 console.error('Error fetching device information:', error);
-                renderError("Error loading device information.");
+                panel.innerHTML = `<div class="status-message">Error loading data.</div>`;
             }
         }
 
         /**
-         * Helper to render error state inside the panel
-         */
-        function renderError(msg) {
-             const panel = document.getElementById('asset-info-panel');
-             panel.innerHTML = `
-                <div class="info-header">
-                    <span>Error</span>
-                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
-                </div>
-                <div class="no-data">${msg}</div>
-             `;
-        }
-
-        /**
-         * Render the asset information panel
+         * Render the HTML
          */
         function renderAssetInfo(device) {
             const panel = document.getElementById('asset-info-panel');
             
-            // Extract device information
-            const deviceName = device.name || 'N/A';
-            const licensePlate = device.licensePlate || 'N/A';
-            const licenseState = device.licenseState || 'N/A';
-            const vin = device.vehicleIdentificationNumber || 'N/A';
+            // Safe extraction helper
+            const getVal = (val) => (val && val !== 'N/A' ? val : '<span class="no-data">--</span>');
+
+            const deviceName = device.name || 'Unknown Device';
+            const licensePlate = device.licensePlate;
+            const licenseState = device.licenseState;
+            const vin = device.vehicleIdentificationNumber;
+            const serialNumber = device.serialNumber;
             
-            // Extract device serial number
-            const serialNumber = device.serialNumber || 'N/A';
+            // Groups handling
+            const make = (device.autoGroups && device.autoGroups.make) ? device.autoGroups.make : device.make;
+            const model = (device.autoGroups && device.autoGroups.model) ? device.autoGroups.model : device.model;
+            const year = (device.autoGroups && device.autoGroups.year) ? device.autoGroups.year : (device.modelYear || device.year);
             
-            // Extract vehicle details (make, model, year)
-            const make = device.autoGroups && device.autoGroups.make 
-                ? device.autoGroups.make 
-                : (device.make || 'N/A');
-            const model = device.autoGroups && device.autoGroups.model 
-                ? device.autoGroups.model 
-                : (device.model || 'N/A');
-            const year = device.autoGroups && device.autoGroups.year 
-                ? device.autoGroups.year 
-                : (device.modelYear || device.year || 'N/A');
-            
-            // Build the HTML
             let html = `
-                <div class="info-header">
-                    <span>${deviceName}</span>
-                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
-                </div>
+                <div class="info-header">${deviceName}</div>
+                
                 <div class="info-row">
-                    <div class="info-label">License Plate:</div>
-                    <div class="info-value ${licensePlate === 'N/A' ? 'no-data' : ''}">${licensePlate}</div>
+                    <div class="info-label">License Plate</div>
+                    <div class="info-value">${getVal(licensePlate)}</div>
                 </div>
+                
                 <div class="info-row">
-                    <div class="info-label">State/Province:</div>
-                    <div class="info-value ${licenseState === 'N/A' ? 'no-data' : ''}">${licenseState}</div>
+                    <div class="info-label">State/Province</div>
+                    <div class="info-value">${getVal(licenseState)}</div>
                 </div>
+                
                 <div class="info-row">
-                    <div class="info-label">VIN:</div>
-                    <div class="info-value ${vin === 'N/A' ? 'no-data' : ''}">${vin}</div>
+                    <div class="info-label">VIN</div>
+                    <div class="info-value">${getVal(vin)}</div>
                 </div>
+                
                 <div class="info-row">
-                    <div class="info-label">Make:</div>
-                    <div class="info-value ${make === 'N/A' ? 'no-data' : ''}">${make}</div>
+                    <div class="info-label">Year Make Model</div>
+                    <div class="info-value">
+                        ${getVal(year)} ${getVal(make)} ${getVal(model)}
+                    </div>
                 </div>
+
                 <div class="info-row">
-                    <div class="info-label">Model:</div>
-                    <div class="info-value ${model === 'N/A' ? 'no-data' : ''}">${model}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Year:</div>
-                    <div class="info-value ${year === 'N/A' ? 'no-data' : ''}">${year}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Serial Number:</div>
-                    <div class="info-value ${serialNumber === 'N/A' ? 'no-data' : ''}">${serialNumber}</div>
+                    <div class="info-label">Serial Number</div>
+                    <div class="info-value">${getVal(serialNumber)}</div>
                 </div>
             `;
             
             panel.innerHTML = html;
         }
 
-        /**
-         * Focus handler
-         */
         function focus(freshApi, freshState) {
             api = freshApi;
             state = freshState;
         }
 
-        /**
-         * Blur handler
-         */
-        function blur(freshApi, freshState) {
-            // Can be used to hide the panel when map loses focus if desired
-        }
+        function blur(freshApi, freshState) { }
     </script>
 </body>
 </html>
