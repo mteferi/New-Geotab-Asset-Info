@@ -5,18 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asset Information Display</title>
     <style>
+        /* CRITICAL FIX: 
+           We make the body transparent and disable pointer events so clicks 
+           pass through the empty space to the Geotab map below.
+        */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+            background-color: transparent; 
+            pointer-events: none; 
         }
         
         #asset-info-panel {
+            /* Positioning Logic: Floats the panel over the map */
+            position: absolute;
+            top: 10px;    /* Adjust this to move it up/down */
+            right: 10px;  /* Adjust this to move it left/right */
+            z-index: 9999; /* High z-index ensures it sits ON TOP of the map */
+            
+            /* Visual Styling */
             background-color: #ffffff;
             border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             padding: 16px;
-            max-width: 400px;
+            width: 320px; /* Fixed width prevents resizing issues */
+            
+            /* Enable clicks on the panel itself */
+            pointer-events: auto; 
+            
+            /* Hidden by default until an item is selected */
+            display: none; 
         }
         
         .info-header {
@@ -26,6 +45,22 @@
             margin-bottom: 16px;
             padding-bottom: 8px;
             border-bottom: 2px solid #0073e6;
+            
+            /* Flexbox to align title and close button */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Close button styling */
+        .close-btn {
+            cursor: pointer;
+            font-size: 24px;
+            color: #999;
+            line-height: 1;
+        }
+        .close-btn:hover {
+            color: #333;
         }
         
         .info-row {
@@ -34,13 +69,14 @@
             padding: 8px;
             background-color: #f8f9fa;
             border-radius: 4px;
+            font-size: 13px; /* Slightly smaller text for better fit */
         }
         
         .info-label {
             font-weight: 600;
             color: #555;
-            min-width: 140px;
-            margin-right: 12px;
+            min-width: 100px;
+            margin-right: 10px;
         }
         
         .info-value {
@@ -90,17 +126,19 @@
             // Check if a device is already selected
             if (state.device && state.device.id) {
                 displayAssetInfo(state.device);
+            } else {
+                showNoSelection();
             }
             
             initializeCallback();
         }
 
         /**
-         * Display "no selection" message
+         * Hides the panel when no vehicle is selected
          */
         function showNoSelection() {
             const panel = document.getElementById('asset-info-panel');
-            panel.innerHTML = '<div class="loading">Select a vehicle to view information...</div>';
+            panel.style.display = 'none';
         }
 
         /**
@@ -108,7 +146,16 @@
          */
         async function displayAssetInfo(device) {
             const panel = document.getElementById('asset-info-panel');
-            panel.innerHTML = '<div class="loading">Loading asset information...</div>';
+            
+            // Show the panel and display loading state
+            panel.style.display = 'block';
+            panel.innerHTML = `
+                <div class="info-header">
+                    <span>Loading...</span>
+                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
+                </div>
+                <div class="loading">Fetching asset details...</div>
+            `;
             
             try {
                 // Get full device details
@@ -123,12 +170,26 @@
                     const fullDevice = devices[0];
                     renderAssetInfo(fullDevice);
                 } else {
-                    panel.innerHTML = '<div class="no-data">No device information found.</div>';
+                    renderError("No device information found.");
                 }
             } catch (error) {
                 console.error('Error fetching device information:', error);
-                panel.innerHTML = '<div class="no-data">Error loading device information.</div>';
+                renderError("Error loading device information.");
             }
+        }
+
+        /**
+         * Helper to render error state inside the panel
+         */
+        function renderError(msg) {
+             const panel = document.getElementById('asset-info-panel');
+             panel.innerHTML = `
+                <div class="info-header">
+                    <span>Error</span>
+                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
+                </div>
+                <div class="no-data">${msg}</div>
+             `;
         }
 
         /**
@@ -159,7 +220,10 @@
             
             // Build the HTML
             let html = `
-                <div class="info-header">${deviceName}</div>
+                <div class="info-header">
+                    <span>${deviceName}</span>
+                    <span class="close-btn" onclick="document.getElementById('asset-info-panel').style.display='none'">&times;</span>
+                </div>
                 <div class="info-row">
                     <div class="info-label">License Plate:</div>
                     <div class="info-value ${licensePlate === 'N/A' ? 'no-data' : ''}">${licensePlate}</div>
@@ -194,19 +258,18 @@
         }
 
         /**
-         * Focus handler (optional)
+         * Focus handler
          */
         function focus(freshApi, freshState) {
-            // Called when add-in gains focus
             api = freshApi;
             state = freshState;
         }
 
         /**
-         * Blur handler (optional)
+         * Blur handler
          */
         function blur(freshApi, freshState) {
-            // Called when add-in loses focus
+            // Can be used to hide the panel when map loses focus if desired
         }
     </script>
 </body>
